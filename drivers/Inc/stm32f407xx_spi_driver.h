@@ -92,6 +92,9 @@
 #define SPI_EVENT_OVR_ERR     3
 #define SPI_EVENT_CRC_ERR     4
 
+
+
+
  //API Supported by SPI
 
  //Peripheral clock setup

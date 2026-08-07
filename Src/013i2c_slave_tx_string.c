@@ -9,10 +9,11 @@
 #include <stm32f407xx.h>
 #include<string.h>
 #include<stdio.h>
-//flag variable
-uint8_t rxcmplt = RESET;
-#define  MY_Addr 0x61
+
 #define SLAVE_ADDR 0x68
+
+#define  MY_Addr SLAVE_ADDR
+
 void delay(void){
 	for(uint32_t i=0;i<=500000;i++);
 }
@@ -21,11 +22,13 @@ I2C_Handle_t I2C1Handle;
 
 //SOME DATA
 
-uint8_t rcv_buff[32];
+uint8_t Tx_buff[32] = "STM32 Slave Mode Testing..";
+
 /*
  * PB6 - SCL
- * PB7 - SDA
+ * PB9 - SDA
  */
+
 void I2C1_GpioInits(void){
 	GPIO_Handle_t I2CPins;
 	I2CPins.pGPIOBaseAddr = GPIOB;
@@ -40,7 +43,7 @@ void I2C1_GpioInits(void){
 	GPIO_Init(&I2CPins);
 
     // SDA
-	I2CPins.GPIOPinConfig.GPIO_PinNumber = GPIO_PIN_NO_7;
+	I2CPins.GPIOPinConfig.GPIO_PinNumber = GPIO_PIN_NO_9;
 	GPIO_Init(&I2CPins);
 }
 
@@ -68,9 +71,6 @@ void  GPIO_ButtonInit(void){
 	GPIO_Init(&Gpiobtn);
 }
 int main (void){
-	uint8_t CommandCode;
-	uint8_t Len;
-
 	GPIO_ButtonInit();
 	I2C1_GpioInits();
 	I2C1_Inits();
@@ -78,45 +78,16 @@ int main (void){
 	//I2C IRQ CONFIGURATIONS
 	 I2C_IRQConfig(IRQ_NO_I2C1_EV,ENABLE);
 	 I2C_IRQConfig(IRQ_NO_I2C1_ER,ENABLE);
-	 /*NO NEED HERE
-	 I2C_IRQPriorityConfig(IRQ_NO_I2C1_EV, NVIC_IRQ_PRIO15);
-	 I2C_IRQPriorityConfig(IRQ_NO_I2C1_ER, NVIC_IRQ_PRIO12);
-*/
+
+	 I2C_SlaveEnableDisableCallbackEvents(I2C1,ENABLE);
 
 	I2C_PeriClockControl(I2C1,ENABLE);//PE=1;
-	//ACK BIT MADE 1 AFTER PE =1
+	//ACK BIT MADE 1 AFTER PE =1 //manage acking
 	I2C1Handle.pI2CBaseAddr->CR1 |= (1<<I2C_CR1_ACK);
 
-	while(1){
-			//wait for button press
-			 while(!GPIO_ReadFromInputPin(GPIOA,GPIO_PIN_NO_0))
-			 {
+	while(1);
 
-			 }
-			 //to avoid button de-bouncing related issues 200ms of delay
-			 delay();
 
-			CommandCode=0x51;
-
-			//Data write: Master sending command to slave 0x51 command means tell me lenghth of data
-			while( I2C_MasterSendDataIT(&I2C1Handle,&CommandCode,1,SLAVE_ADDR,I2C_ENABLE_SR) != I2C_Ready);
-
-			//Data read:  Master reading response from slave
-			while( I2C_MasterReceiveDataIT(&I2C1Handle,&Len,1,SLAVE_ADDR,I2C_ENABLE_SR) != I2C_Ready);
-
-			CommandCode=0x52;
-			//Data write: Master sending command to slave 0x52 command means send data
-			while( I2C_MasterSendDataIT(&I2C1Handle,&CommandCode,1,SLAVE_ADDR,I2C_ENABLE_SR) != I2C_Ready);
-
-			//Data read:  Master reading response from slave which is actual data
-			while( I2C_MasterReceiveDataIT(&I2C1Handle,rcv_buff,Len,SLAVE_ADDR,I2C_DISABLE_SR)!= I2C_Ready);
-		    rxcmplt = RESET;
-			while(rxcmplt != SET);
-		    rcv_buff[Len+1] ='\0';
-		    printf("Data : %s",rcv_buff);
-		    rxcmplt = RESET;
-
-	}
 }
 void I2C1_EV_IRQHandler(void){
 	I2C_EV_Handler(&I2C1Handle);
@@ -127,18 +98,34 @@ void I2C1_ER_IRQHandler(void){
 }
 
 void I2C_ApplicationEvent_Callback(I2C_Handle_t *pI2CHandle,uint8_t App_Ev){
-	if(App_Ev == I2C_EV_TX_CMPLT){
-		printf("TX is completed");
-	}else if(App_Ev == I2C_EV_RX_CMPLT){
-		printf("RX is completed");
-		rxcmplt = SET;
-	}else if(App_Ev == I2C_ERROR_AF){
-		printf("ERR : ACK FAILURE");
-		//in master ack failure happens when slave fails to send ack for the byte
-		//sent from master.
-		I2C_CloseSendData(pI2CHandle);
-		I2C_GenerateStopCondition(I2C1);
-		//hang in infinite loop
-		while(1);
+
+	static uint8_t commandcode = 0;
+	static uint8_t cnt = 0;
+
+	if(App_Ev == I2C_EV_DATA_REQ){
+	//master wants some data. slave has to send it
+	if(commandcode== 0x51){
+
+	//send the length info
+		I2C_SlaveSendData(pI2CHandle->pI2CBaseAddr, strlen((char*)Tx_buff));
+
+	} else if(commandcode== 0x52){
+
+	//send the actual content of tx buffer
+		I2C_SlaveSendData(pI2CHandle->pI2CBaseAddr, Tx_buff[cnt++]);
+
 	}
+}else if(App_Ev == I2C_EV_DATA_RCV){
+	//data is waiting for the slave to read. slave has to read it
+	commandcode = I2C_SlaveReceiveData(pI2CHandle->pI2CBaseAddr);
+}else if(App_Ev == I2C_ERROR_AF){
+    //this happens only during slave transmission
+	//master has sent the nack so slave should understand that master doesnt need more data
+	commandcode = 0xff;
+	cnt =0;
+}else if(App_Ev == I2C_EV_STOP){
+  //this happend only during slave reception
+ // master has ended the I2C communication with the slave
+}
+
 }

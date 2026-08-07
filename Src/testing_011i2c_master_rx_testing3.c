@@ -1,5 +1,5 @@
 /*
- * 010i2c_master_tx_testing.c
+ * 011i2c_master_rx_testing.c
  *
  *  Created on: Jul 10, 2026
  *      Author: sneha
@@ -10,6 +10,7 @@
 #include<string.h>
 #include<stdio.h>
 
+extern void initialise_monitor_handles();
 
 #define  MY_Addr 0x61
 #define SLAVE_ADDR 0x68
@@ -21,7 +22,7 @@ I2C_Handle_t I2C1Handle;
 
 //SOME DATA
 
-uint8_t some_data[] = "we are testing I2C master TX\n";
+uint8_t rcv_buff[32];
 /*
  * PB6 - SCL
  * PB7 - SDA
@@ -54,6 +55,17 @@ void I2C1_Inits(void){
 	I2C1Handle.I2CConfig.I2C_SCLSpeed = I2C_SCL_SPEED_SM;
 	I2C_Init(&I2C1Handle);
 }
+
+void  GPIO_ButtonInit(void){
+	//button configurations
+	GPIO_Handle_t Gpiobtn;
+	Gpiobtn.pGPIOBaseAddr = GPIOA;
+	Gpiobtn.GPIOPinConfig.GPIO_PinNumber = GPIO_PIN_NO_0;
+	Gpiobtn.GPIOPinConfig.GPIO_PinMode = GPIO_MODE_IN;
+	Gpiobtn.GPIOPinConfig.GPIO_PinPuPdControl = GPIO_NO_PUPD;
+	GPIO_PeriClockControl(GPIOA, ENABLE);
+	GPIO_Init(&Gpiobtn);
+}
 void LED_Init(void)
 {
     GPIO_Handle_t LED;
@@ -70,46 +82,43 @@ void LED_Init(void)
 
     GPIO_Init(&LED);
 }
-void  GPIO_ButtonInit(void){
-	//button configurations
-	GPIO_Handle_t Gpiobtn;
-	Gpiobtn.pGPIOBaseAddr = GPIOA;
-	Gpiobtn.GPIOPinConfig.GPIO_PinNumber = GPIO_PIN_NO_0;
-	Gpiobtn.GPIOPinConfig.GPIO_PinMode = GPIO_MODE_IN;
-	Gpiobtn.GPIOPinConfig.GPIO_PinPuPdControl = GPIO_NO_PUPD;
-	GPIO_PeriClockControl(GPIOA, ENABLE);
-	GPIO_Init(&Gpiobtn);
-}
 int main (void){
+	uint8_t CommandCode;
+	uint8_t Len;
 
-    LED_Init();
+	initialise_monitor_handles();
+
+	printf("Application is running \n");
+	LED_Init();
 	GPIO_ButtonInit();
 	I2C1_GpioInits();
 	I2C1_Inits();
 
-	I2C_PeriClockControl(I2C1,ENABLE);
-	while(1){
-	    GPIO_ToggleOutputPin(GPIOD, GPIO_PIN_NO_12);
-	}
+	I2C_PeriClockControl(I2C1,ENABLE);//PE=1;
+	//ACK BIT MADE 1 AFTER PE =1
+	I2C1Handle.pI2CBaseAddr->CR1 |= (1<<I2C_CR1_ACK);
 	while(1){
 	//wait for button press
-	 while(!GPIO_ReadFromInputPin(GPIOA,GPIO_PIN_NO_0)){
-		 ;
-	 }
-				 //to avoid button de-bouncing related issues 200ms of delay
-				 delay();
-				 // Add this test
-				    GPIO_ToggleOutputPin(GPIOD, GPIO_PIN_NO_12);
+	 while(!GPIO_ReadFromInputPin(GPIOA,GPIO_PIN_NO_0));
+	 printf("BUTTON PRESSED\n");//testing
 
-				    delay();
+	 //to avoid button de-bouncing related issues 200ms of delay
+	 delay();
 
-	//send data
-	I2C_MasterSendData(&I2C1Handle,some_data, strlen((char*)some_data),SLAVE_ADDR,0);
+	 printf("Starting I2C\n");
 
-    while(GPIO_ReadFromInputPin(GPIOA, GPIO_PIN_NO_0))
-    {
-    }
+	 CommandCode=0x51;
+	 I2C_MasterSendData(&I2C1Handle,&CommandCode,1,SLAVE_ADDR,I2C_ENABLE_SR);
+	 printf("I2C command 0x51 sent\n");
+	 I2C_MasterReceiveData(&I2C1Handle,&Len,1,SLAVE_ADDR,I2C_ENABLE_SR);
+     printf("Length received = %d\n", Len);
 
-    delay();
+	 CommandCode=0x52;
+		 I2C_MasterSendData(&I2C1Handle,&CommandCode,1,SLAVE_ADDR,I2C_ENABLE_SR);
+	     printf("I2C command 0x52 sent\n");
+		 I2C_MasterReceiveData(&I2C1Handle,rcv_buff,Len,SLAVE_ADDR,I2C_DISABLE_SR);
+		 rcv_buff[Len+1] ='\0';
+		 printf("Data : %s",rcv_buff);
+
 	}
 }

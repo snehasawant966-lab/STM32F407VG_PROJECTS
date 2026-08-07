@@ -40,7 +40,7 @@ void I2C1_GpioInits(void){
 	GPIO_Init(&I2CPins);
 
     // SDA
-	I2CPins.GPIOPinConfig.GPIO_PinNumber = GPIO_PIN_NO_9;
+	I2CPins.GPIOPinConfig.GPIO_PinNumber = GPIO_PIN_NO_7;
 	GPIO_Init(&I2CPins);
 }
 

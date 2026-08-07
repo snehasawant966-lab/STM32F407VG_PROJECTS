@@ -74,6 +74,8 @@ typedef struct{
 #define I2C_EV_TX_CMPLT   0
 #define I2C_EV_RX_CMPLT   1
 #define I2C_EV_STOP       2
+#define I2C_EV_DATA_REQ   8
+#define I2C_EV_DATA_RCV   9
 
 //I2C ERROR EVENT MACROS
 #define I2C_ERROR_BERR    3
@@ -120,7 +122,7 @@ typedef struct{
 //other peripheral control APIs
 
 
-  void I2C_Peripheralcontrol(I2C_RegDef_t *pI2C_BaseAddr, uint8_t EnorDi);
+  void I2C_PeripheralControl(I2C_RegDef_t *pI2C_BaseAddr, uint8_t EnorDi);
   uint8_t I2C_GetFlagStatus(I2C_RegDef_t *pI2C_BaseAddr,uint32_t FlagName);
   //application callback
   void I2C_ApplicationEvent_Callback(I2C_Handle_t *pI2CHandle,uint8_t App_Ev);
@@ -128,5 +130,6 @@ typedef struct{
 //
   void I2C_Close_ReceiveData(I2C_Handle_t *pI2CHandle);
    void I2C_CloseSendData(I2C_Handle_t *pI2CHandle);
+   void I2C_SlaveEnableDisableCallbackEvents(I2C_RegDef_t *pI2C_BaseAddr, uint8_t EnorDi);
 
 #endif /* INC_STM32F407XX_I2C_DRIVER_H_ */

@@ -27,19 +27,6 @@
 		 }
 	 }
  }
- /*
-  * system clock is HSI, System clock is modified using AHB1 PRESC
-  * After then AHB1 Clock is given to APB1 prescalar and then will get the APB1 peri clock where I2C is connected.
-  *
-  * in RCC prescalars are configured.
-  */
-
- uint32_t RCCGetPPllClockOutput(){
-	 return 0;
- }
-
- uint16_t AHB_PreScalar[8] = {2,4,8,16,64,128,256,512};
- uint8_t APB1_PreScalar[8] = {2,4,8,16};
 
 
  static void I2C_GenerateStartCondition(I2C_RegDef_t *pI2C_BaseAddr);
@@ -50,46 +37,21 @@
  static void I2C_MasterHandle_RXNEInterrupt(I2C_Handle_t *pI2CHandle);
  static void I2C_MasterHandle_TXEInterrupt(I2C_Handle_t *pI2CHandle);
 
-
-
- uint32_t RCC_GetPCLK1Value(void){
-	 uint32_t pclk1,SystemClk ;
-	 uint8_t clksrc, temp, ahbp, apbp1;
-	 clksrc = ((RCC->CFGR >>2) & 0x3);
-	 if (clksrc == 0){
-		 SystemClk = 16000000;
-	 }else if (clksrc == 1){
-		 SystemClk = 8000000;
-	 }else if (clksrc == 2){
-		 SystemClk = RCCGetPPllClockOutput();
-	 }
-	 //AHB
-	 temp = ((RCC->CFGR >>4) & 0xf);
-	 if(temp<8){
-		 ahbp = 1;
-	 }else{
-		 ahbp=AHB_PreScalar[temp-8];
-	 }
-
-	 //APB1
-		 temp = ((RCC->CFGR >>10) & 0x7);
-		 if(temp<4){
-			 apbp1 = 1;
-		 }else{
-			 apbp1 = APB1_PreScalar[temp-4];
-		 }
-
-		 pclk1 = (SystemClk/ahbp)/apbp1;
-	 return pclk1;
- }
-
  //INIT AND DEINIT
   void I2C_Init(I2C_Handle_t *pI2CHandle){
 
     I2C_PeriClockControl(pI2CHandle->pI2CBaseAddr,ENABLE);
-    uint32_t tempreg =0;
+    I2C_PeripheralControl(pI2CHandle->pI2CBaseAddr, ENABLE);
+    uint32_t cr1_test2 = pI2CHandle->pI2CBaseAddr->CR1;
+     uint32_t tempreg =0;
+     uint32_t before = pI2CHandle->pI2CBaseAddr->CR1;
+     //tempreg |= (1 << 10);
     tempreg |= (pI2CHandle->I2CConfig.I2C_ACKControl << I2C_CR1_ACK);
-    pI2CHandle->pI2CBaseAddr->CR1 = tempreg;
+    pI2CHandle->pI2CBaseAddr->CR1 |= tempreg;
+      //pI2CHandle->pI2CBaseAddr->CR1 |= (1 << 10);
+     // pI2CHandle->pI2CBaseAddr->CR1 |= (1 << I2C_CR1_ACK);
+
+     uint32_t cr1_test1 = pI2CHandle->pI2CBaseAddr->CR1;
 
      tempreg =0;
      tempreg |= RCC_GetPCLK1Value()/1000000U;
@@ -98,10 +60,12 @@
 
      //program the device own address
 
-     tempreg |= pI2CHandle->I2CConfig.I2C_DeviceAddress <<1;
-     pI2CHandle->pI2CBaseAddr->OAR1 = tempreg;
+     tempreg = 0;
 
-     tempreg |= (1<<14);
+     tempreg |= (pI2CHandle->I2CConfig.I2C_DeviceAddress << 1);
+
+     tempreg |= (1 << 14);    // Must be 1 for 7-bit addressing
+
      pI2CHandle->pI2CBaseAddr->OAR1 = tempreg;
 
      // CCR Calculations
@@ -135,6 +99,8 @@
 	     trise = ((RCC_GetPCLK1Value()*300)/1000000U)+1;
      }
      pI2CHandle->pI2CBaseAddr->TRISE = (trise & 0x3F);
+
+
   }
   void I2C_DeInit(I2C_RegDef_t *pI2C_BaseAddr){
 	  if (pI2C_BaseAddr == I2C1){
@@ -153,18 +119,26 @@
 	  //1. 	Generate the start condition
 
 	  I2C_GenerateStartCondition(pI2CHandle->pI2CBaseAddr);
+	    //GPIO_ToggleOutputPin(GPIOD, GPIO_PIN_NO_12); //Testing purpose
 
 	  //2. confirm that start generation is completed by checking the SB flag in the SR1
 	  //Note : until SB is cleared SCL will be stretched (pulled to low)
-        while(! I2C_GetFlagStatus(pI2CHandle->pI2CBaseAddr, I2C_FLAG_SB));
+
+	  while(!I2C_GetFlagStatus(pI2CHandle->pI2CBaseAddr, I2C_FLAG_SB));
+	    GPIO_ToggleOutputPin(GPIOD, GPIO_PIN_NO_12);//Testing purpose
+
 
 	  //3. Send the address of the slave with r/nw bit setr w(0) (total 8 bits)
 
         I2C_ExecuteAddressPhase(pI2CHandle->pI2CBaseAddr, SlaveAddr);
+       // GPIO_ToggleOutputPin(GPIOD, GPIO_PIN_NO_12);//Testing purpose
+//testing
 
 	  //4. confirm that address phase is completed by checking the ADDR flag in the SRI
 
-        while(! I2C_GetFlagStatus(pI2CHandle->pI2CBaseAddr, I2C_FLAG_ADDR));
+        while(! I2C_GetFlagStatus(pI2CHandle->pI2CBaseAddr, I2C_FLAG_ADDR)){
+            GPIO_ToggleOutputPin(GPIOD, GPIO_PIN_NO_12);
+        }
 
 	  //5. Clear the ADDR flag according to its software sequence
 	  //Note: until ADDR is cleared SCL will be stretched (pulled to low)
@@ -262,8 +236,8 @@
   		//clear the ADDR flag
   	  I2C_ClearADDRFlag(pI2CHandle);
   		//wait until  RXNE becomes 1
-	  I2C_GetFlagStatus(pI2CHandle->pI2CBaseAddr,I2C_FLAG_RXNE);
-	  //generate STOP condition
+  	while(!I2C_GetFlagStatus(pI2CHandle->pI2CBaseAddr, I2C_FLAG_RXNE));
+  	//generate STOP condition
 	  	  I2C_GenerateStopCondition(pI2CHandle->pI2CBaseAddr);
   		//read data in to buffer
 	  *pRxBuffer = pI2CHandle->pI2CBaseAddr->DR;
@@ -541,6 +515,7 @@
 	  //       When Slave mode  : address matched with own address
 
 	  temp3 = pI2CHandle->pI2CBaseAddr->SR1 & (1<<I2C_SR1_ADDR);
+
 	  if(temp1 && temp3){
 
 	  		  // ADDR FLAG is SET
@@ -596,6 +571,11 @@
 		  if(pI2CHandle->TxRxState == I2C_BUSY_IN_TX){
 			  I2C_MasterHandle_TXEInterrupt(pI2CHandle);
 		  }
+	    }else{
+	    	//slave
+	    	if(pI2CHandle->pI2CBaseAddr->SR2 &(1<<I2C_SR2_TRA)){
+	    		I2C_ApplicationEvent_Callback(pI2CHandle,I2C_EV_DATA_REQ);
+	    	}
 	    }
 	  }
 	  //Handle for interrupt generated by RXNE flag
@@ -609,6 +589,11 @@
 
                 I2C_MasterHandle_RXNEInterrupt(pI2CHandle);
 			   }
+		 }else{
+			//Slave
+		    	if(!(pI2CHandle->pI2CBaseAddr->SR2 &(1<<I2C_SR2_TRA))){
+		    		I2C_ApplicationEvent_Callback(pI2CHandle,I2C_EV_DATA_RCV);
+		    	}
 		 }
 	  }
   }
@@ -706,4 +691,15 @@
 
   }
 
+  void I2C_SlaveEnableDisableCallbackEvents(I2C_RegDef_t *pI2C_BaseAddr, uint8_t EnorDi){
+	  if (EnorDi == ENABLE){
+		  pI2C_BaseAddr->CR2 |= (1<<I2C_CR2_ITEVTEN);
+		  pI2C_BaseAddr->CR2 |= (1<<I2C_CR2_ITERREN);
+		  pI2C_BaseAddr->CR2 |= (1<<I2C_CR2_ITBUFEN);
+	  }else{
+		  pI2C_BaseAddr->CR2 &= ~(1<<I2C_CR2_ITEVTEN);
+		  pI2C_BaseAddr->CR2 &= ~(1<<I2C_CR2_ITERREN);
+		  pI2C_BaseAddr->CR2 &= ~(1<<I2C_CR2_ITBUFEN);
+	  }
+  }
 

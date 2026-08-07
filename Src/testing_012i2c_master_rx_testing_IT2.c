@@ -1,5 +1,5 @@
-/*
- * 010i2c_master_tx_testing.c
+ /*
+ * 012i2c_master_rx_testing_IT.c
  *
  *  Created on: Jul 10, 2026
  *      Author: sneha
@@ -9,6 +9,9 @@
 #include <stm32f407xx.h>
 #include<string.h>
 #include<stdio.h>
+
+extern void initialise_monitor_handles();
+
 //flag variable
 uint8_t rxcmplt = RESET;
 #define  MY_Addr 0x61
@@ -57,6 +60,23 @@ void I2C1_Inits(void){
 	I2C_Init(&I2C1Handle);
 }
 
+void LED_Init(void)
+{
+    GPIO_Handle_t LED;
+
+    LED.pGPIOBaseAddr = GPIOD;
+
+    GPIO_PeriClockControl(GPIOD, ENABLE);
+
+    LED.GPIOPinConfig.GPIO_PinNumber = GPIO_PIN_NO_12;
+    LED.GPIOPinConfig.GPIO_PinMode = GPIO_MODE_OUT;
+    LED.GPIOPinConfig.GPIO_PinOPType = GPIO_OP_TYPE_PP;
+    LED.GPIOPinConfig.GPIO_PinSpeed = GPIO_OP_SPEED_LOW;
+    LED.GPIOPinConfig.GPIO_PinPuPdControl = GPIO_NO_PUPD;
+
+    GPIO_Init(&LED);
+}
+
 void  GPIO_ButtonInit(void){
 	//button configurations
 	GPIO_Handle_t Gpiobtn;
@@ -67,11 +87,16 @@ void  GPIO_ButtonInit(void){
 	GPIO_PeriClockControl(GPIOA, ENABLE);
 	GPIO_Init(&Gpiobtn);
 }
+
 int main (void){
 	uint8_t CommandCode;
 	uint8_t Len;
 
-	GPIO_ButtonInit();
+	initialise_monitor_handles();
+	printf("Application is running \n");
+
+	LED_Init();
+    GPIO_ButtonInit();
 	I2C1_GpioInits();
 	I2C1_Inits();
 
@@ -95,22 +120,28 @@ int main (void){
 			 }
 			 //to avoid button de-bouncing related issues 200ms of delay
 			 delay();
+			 printf("Starting I2C\n");
 
 			CommandCode=0x51;
 
 			//Data write: Master sending command to slave 0x51 command means tell me lenghth of data
 			while( I2C_MasterSendDataIT(&I2C1Handle,&CommandCode,1,SLAVE_ADDR,I2C_ENABLE_SR) != I2C_Ready);
 
+			rxcmplt = RESET;
+
 			//Data read:  Master reading response from slave
 			while( I2C_MasterReceiveDataIT(&I2C1Handle,&Len,1,SLAVE_ADDR,I2C_ENABLE_SR) != I2C_Ready);
+		     printf("Length received = %d\n", Len);
 
-			CommandCode=0x52;
+		     CommandCode=0x52;
 			//Data write: Master sending command to slave 0x52 command means send data
 			while( I2C_MasterSendDataIT(&I2C1Handle,&CommandCode,1,SLAVE_ADDR,I2C_ENABLE_SR) != I2C_Ready);
 
+			rxcmplt = RESET;
+
 			//Data read:  Master reading response from slave which is actual data
 			while( I2C_MasterReceiveDataIT(&I2C1Handle,rcv_buff,Len,SLAVE_ADDR,I2C_DISABLE_SR)!= I2C_Ready);
-		    rxcmplt = RESET;
+
 			while(rxcmplt != SET);
 		    rcv_buff[Len+1] ='\0';
 		    printf("Data : %s",rcv_buff);
@@ -128,12 +159,12 @@ void I2C1_ER_IRQHandler(void){
 
 void I2C_ApplicationEvent_Callback(I2C_Handle_t *pI2CHandle,uint8_t App_Ev){
 	if(App_Ev == I2C_EV_TX_CMPLT){
-		printf("TX is completed");
+		printf("TX is completed \n");
 	}else if(App_Ev == I2C_EV_RX_CMPLT){
-		printf("RX is completed");
+		printf("RX is completed\n");
 		rxcmplt = SET;
 	}else if(App_Ev == I2C_ERROR_AF){
-		printf("ERR : ACK FAILURE");
+		printf("ERR : ACK FAILURE\n");
 		//in master ack failure happens when slave fails to send ack for the byte
 		//sent from master.
 		I2C_CloseSendData(pI2CHandle);

@@ -85,12 +85,10 @@ int main (void){
     LED_Init();
 	GPIO_ButtonInit();
 	I2C1_GpioInits();
+	//RCC->APB1ENR |= (1 << 21);
 	I2C1_Inits();
 
 	I2C_PeriClockControl(I2C1,ENABLE);
-	while(1){
-	    GPIO_ToggleOutputPin(GPIOD, GPIO_PIN_NO_12);
-	}
 	while(1){
 	//wait for button press
 	 while(!GPIO_ReadFromInputPin(GPIOA,GPIO_PIN_NO_0)){
@@ -106,10 +104,5 @@ int main (void){
 	//send data
 	I2C_MasterSendData(&I2C1Handle,some_data, strlen((char*)some_data),SLAVE_ADDR,0);
 
-    while(GPIO_ReadFromInputPin(GPIOA, GPIO_PIN_NO_0))
-    {
-    }
-
-    delay();
 	}
 }

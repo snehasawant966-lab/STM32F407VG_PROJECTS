@@ -50,7 +50,7 @@
 #define SRAM               SRAM1_BASE_ADDR
 
 //Base addresses of various bus domains
-#define PERIPH_BASE      0x40010000U
+#define PERIPH_BASE      0x40000000U
 #define APB1_PERIPH_BASE PERIPH_BASE
 #define APB2_PERIPH_BASE 0x40010000U
 #define AHB1_PERIPH_BASE 0x40020000U
@@ -151,15 +151,14 @@ typedef struct {
  uint32_t      Reserved;
  __vo uint32_t APB1RSTR;
  __vo uint32_t APB2RSTR;
- __vo uint32_t      Reserved0;
- __vo uint32_t      Reserved1;
+ __vo uint32_t Reserved1[2];
  __vo uint32_t AHB1ENR;
  __vo uint32_t AHB2ENR;
  __vo uint32_t AHB3ENR;
+ uint32_t      RESERVED2;     /*!< Reserved, 0x3C                                                       */
  __vo uint32_t APB1ENR;
  __vo uint32_t APB2ENR;
-  uint32_t     Reserved2;
-  uint32_t     Reserved3;
+  uint32_t     Reserved3[2];
  __vo uint32_t AHB1LPENR;
  __vo uint32_t AHB2LPENR;
  __vo uint32_t AHB3LPENR;
@@ -174,6 +173,10 @@ typedef struct {
   uint32_t     Reserved8;
  __vo uint32_t SSCGR;
  __vo uint32_t PLLI2SCFGR;
+ __vo uint32_t DCKCFGR;       /*!< TODO,     										Address offset: 0x8C */
+ __vo uint32_t CKGATENR;      /*!< TODO,     										Address offset: 0x90 */
+ __vo uint32_t DCKCFGR2;      /*!< TODO,     										Address offset: 0x94 */
+
 }Rcc_Regdef_t;
 
 #define RCC  ((Rcc_Regdef_t*)RCC_BASE_ADDR)
@@ -241,6 +244,27 @@ typedef struct
 #define I2C2  ((I2C_RegDef_t*)I2C2_BASE_ADDR)
 #define I2C3  ((I2C_RegDef_t*)I2C3_BASE_ADDR)
 
+/// structure definition of USART registers
+
+typedef struct{
+
+uint32_t USART_SR1;
+uint32_t USART_DR;
+uint32_t USART_BRR;
+uint32_t USART_CR1;
+uint32_t USART_CR2;
+uint32_t USART_CR3;
+uint32_t USART_GTPR;
+uint32_t USART_SR2;
+uint32_t USART_SR3;
+}USART_RegDef_t;
+
+#define USART1   ((USART_RegDef_t*)USART1_BASE_ADDR)
+#define USART2   ((USART_RegDef_t*)USART2_BASE_ADDR)
+#define USART3   ((USART_RegDef_t*)USART3_BASE_ADDR)
+#define UART4    ((USART_RegDef_t*)UART4_BASE_ADDR)
+#define UART5    ((USART_RegDef_t*)UART5_BASE_ADDR)
+#define USART6   ((USART_RegDef_t*)USART6_BASE_ADDR)
 //Clock enable macros for GPIOx peripherals
 
 #define GPIOA_PCLK_EN() (RCC->AHB1ENR |= (1<<0))
@@ -430,6 +454,91 @@ typedef struct
 #define I2C_CCR_DUTY        14
 #define I2C_CCR_FS          15
 
+
+/*
+ * USART_SR Bit Position Definitions
+ */
+
+#define USART_SR_PE        0   /* Parity Error */
+#define USART_SR_FE        1   /* Framing Error */
+#define USART_SR_NF        2   /* Noise Flag */
+#define USART_SR_ORE       3   /* Overrun Error */
+#define USART_SR_IDLE      4   /* IDLE Line Detected */
+#define USART_SR_RXNE      5   /* Read Data Register Not Empty */
+#define USART_SR_TC        6   /* Transmission Complete */
+#define USART_SR_TXE       7   /* Transmit Data Register Empty */
+#define USART_SR_LBD       8   /* LIN Break Detection Flag */
+#define USART_SR_CTS       9   /* CTS Flag */
+
+/*
+ * USART Baud Rate Register (USART_BRR)
+ * Address Offset : 0x08
+ */
+
+typedef struct
+{
+    volatile uint32_t DIV_Fraction : 4;   // Bits [3:0]   : Fraction of USARTDIV
+    volatile uint32_t DIV_Mantissa : 12;  // Bits [15:4]  : Mantissa of USARTDIV
+    volatile uint32_t RESERVED     : 16;  // Bits [31:16] : Reserved
+} USART_BRR_Bits_t;
+
+/* USART_CR1 Register Bit Definitions */
+
+#define USART_CR1_SBK            0U      // Send Break
+#define USART_CR1_RWU            1U      // Receiver Wakeup
+#define USART_CR1_RE             2U      // Receiver Enable
+#define USART_CR1_TE             3U      // Transmitter Enable
+#define USART_CR1_IDLEIE         4U      // IDLE Interrupt Enable
+#define USART_CR1_RXNEIE         5U      // RX Not Empty Interrupt Enable
+#define USART_CR1_TCIE           6U      // Transmission Complete Interrupt Enable
+#define USART_CR1_TXEIE          7U      // TX Empty Interrupt Enable
+#define USART_CR1_PEIE           8U      // PE Interrupt Enable
+#define USART_CR1_PS             9U      // Parity Selection
+#define USART_CR1_PCE            10U     // Parity Control Enable
+#define USART_CR1_WAKE           11U     // Wakeup Method
+#define USART_CR1_M              12U     // Word Length
+#define USART_CR1_UE             13U     // USART Enable
+#define USART_CR1_RESERVED       14U     // Reserved
+#define USART_CR1_OVER8          15U     // Oversampling Mode
+
+/* USART_CR2 Register Bit Definitions */
+
+#define USART_CR2_ADD        0U      // Bits 3:0 Address of USART node
+#define USART_CR2_ADD_1      1U
+#define USART_CR2_ADD_2      2U
+#define USART_CR2_ADD_3      3U
+#define USART_CR2_LBDL       5U      // LIN Break Detection Length
+#define USART_CR2_LBDIE      6U      // LIN Break Detection Interrupt Enable
+#define USART_CR2_LBCL       8U      // Last Bit Clock Pulse
+#define USART_CR2_CPHA       9U      // Clock Phase
+#define USART_CR2_CPOL       10U     // Clock Polarity
+#define USART_CR2_CLKEN      11U     // Clock Enable
+#define USART_CR2_STOP       12U     // STOP Bits (Bits 13:12)
+#define USART_CR2_LINEN      14U     // LIN Mode Enable
+
+/* USART_CR3 Register Bit Definitions */
+
+#define USART_CR3_EIE        0U      // Error Interrupt Enable
+#define USART_CR3_IREN       1U      // IrDA Mode Enable
+#define USART_CR3_IRLP       2U      // IrDA Low-Power
+#define USART_CR3_HDSEL      3U      // Half-Duplex Selection
+#define USART_CR3_NACK       4U      // Smartcard NACK Enable
+#define USART_CR3_SCEN       5U      // Smartcard Mode Enable
+#define USART_CR3_DMAR       6U      // DMA Enable Receiver
+#define USART_CR3_DMAT       7U      // DMA Enable Transmitter
+#define USART_CR3_RTSE       8U      // RTS Enable
+#define USART_CR3_CTSE       9U      // CTS Enable
+#define USART_CR3_CTSIE      10U     // CTS Interrupt Enable
+#define USART_CR3_ONEBIT     11U     // One Sample Bit Method Enable
+
+/********************  USART_GTPR Register ********************/
+
+#define USART_GTPR_PSC_Pos       0U
+#define USART_GTPR_PSC_Msk       (0xFFU << USART_GTPR_PSC_Pos)
+
+#define USART_GTPR_GT_Pos        8U
+#define USART_GTPR_GT_Msk        (0xFFU << USART_GTPR_GT_Pos)
+
 //INTERRUPT REQUEST NUMBERS OF MCU
  #define IRQ_NO_EXTI0       6
  #define IRQ_NO_EXTI1       7
@@ -484,5 +593,7 @@ typedef struct
 #include<stm32f407xx_gpio_driver.h>
 #include<stm32f407xx_spi_driver.h>
 #include<stm32f407xx_I2C_driver.h>
+#include<stm32f407xx_usart_driver.h>
+#include<stm32f407xx_rcc_driver.h>
 
 #endif /* INC_STM32F407XX_H_ */
